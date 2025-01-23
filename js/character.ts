@@ -398,7 +398,8 @@ export class Character {
 
     private render(): void {
         const now = Date.now() / 1000;
-        const delta = now - this.lastFrameTime;
+        // Limit delta to 0.1s, effectively pausing the animation when the window is in background
+        const delta = Math.min(now - this.lastFrameTime, 0.1);
         this.lastFrameTime = now;
         this.currentAction.timestamp += delta;
 
