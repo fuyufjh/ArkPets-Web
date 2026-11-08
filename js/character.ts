@@ -7,7 +7,7 @@ import { CharacterModel } from './types.js';
 const MOVING_SPEED = 30; // pixels per second
 
 const GRAVITY = 1000; // pixels per second squared
-const DRAG = 0.98; // air resistance
+const DRAG = 0.98; // air resistance, as velocity kept per 1/60 s
 const MAX_VELOCITY = 1000; // maximum velocity in pixels per second
 const MIN_VELOCITY = 5; // threshold for stopping
 const BOUNCE_DAMPING = 0.7; // energy loss on bounce
@@ -87,6 +87,9 @@ export class Character {
 
     private animationFrameId: number | null = null;
 
+    // Removes every listener added in setupEventListeners() at once
+    private listeners = new AbortController();
+
     // Vehicle can't sit & sleep
     private isVehicle: boolean = false;
 
@@ -122,7 +125,8 @@ export class Character {
     private initializeWebGL(): void {
         this.gl = this.canvas.getContext("webgl", {
             alpha: true,
-            premultipliedAlpha: false
+            // Ark-Models textures use premultiplied alpha, so the framebuffer holds premultiplied colors too
+            premultipliedAlpha: true
         }) as WebGLRenderingContext;
 
         if (!this.gl) {
@@ -143,25 +147,30 @@ export class Character {
     }
 
     private setupEventListeners(onContextMenu: (e: MouseEvent | TouchEvent) => void): void {
+        const { signal } = this.listeners;
+
         // Track mouse position to decide mouse over
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        document.addEventListener('mousemove', this.handleMouseMove.bind(this), { signal });
+
+        // Keep the state for the next page in this tab
+        window.addEventListener('pagehide', this.saveToSessionStorage.bind(this), { signal });
 
         if (this.allowInteract) {
             // React to click events
-            this.canvas.addEventListener('click', this.handleCanvasClick.bind(this));
+            this.canvas.addEventListener('click', this.handleCanvasClick.bind(this), { signal });
 
             // Context menu
-            this.canvas.addEventListener('contextmenu', onContextMenu);
+            this.canvas.addEventListener('contextmenu', onContextMenu, { signal });
 
             // Mouse events
-            this.canvas.addEventListener('mousedown', this.handleDragStart.bind(this));
-            document.addEventListener('mousemove', this.handleDrag.bind(this));
-            document.addEventListener('mouseup', this.handleDragEnd.bind(this));
-            
+            this.canvas.addEventListener('mousedown', this.handleDragStart.bind(this), { signal });
+            document.addEventListener('mousemove', this.handleDrag.bind(this), { signal });
+            document.addEventListener('mouseup', this.handleDragEnd.bind(this), { signal });
+
             // Touch events
-            this.canvas.addEventListener('touchstart', this.handleDragStart.bind(this));
-            document.addEventListener('touchmove', this.handleDrag.bind(this));
-            document.addEventListener('touchend', this.handleDragEnd.bind(this));
+            this.canvas.addEventListener('touchstart', this.handleDragStart.bind(this), { signal });
+            document.addEventListener('touchmove', this.handleDrag.bind(this), { signal });
+            document.addEventListener('touchend', this.handleDragEnd.bind(this), { signal });
         }
     }
 
@@ -233,6 +242,9 @@ export class Character {
         const basePath = model.resourcePath ?? "";
         Promise.all(resources.map(async resource => {
             const response = await fetch(basePath + encodeUriPath(resource));
+            if (!response.ok) {
+                throw new Error(`${resource}: HTTP ${response.status}`);
+            }
             const blob = await response.blob();
             const reader = new FileReader();
             return new Promise<string>(resolve => {
@@ -332,9 +344,8 @@ export class Character {
         const skeletonData = skeletonBinary.readSkeletonData(this.assetManager.get(resource.skeleton));
         const skeleton = new spine.Skeleton(skeletonData);
 
-        if (!skeletonData.findAnimation("Sit") || !skeletonData.findAnimation("Sleep")) {
-            this.isVehicle = true;
-        }
+        // Recomputed for every model, so switching back from a vehicle restores Sit and Sleep
+        this.isVehicle = !skeletonData.findAnimation("Sit") || !skeletonData.findAnimation("Sleep");
 
         const animationStateData = new spine.AnimationStateData(skeleton.data);
 
@@ -408,14 +419,14 @@ export class Character {
             // Apply gravity
             this.velocity.y += GRAVITY * delta;
             
-            // Apply drag
-            this.velocity.x *= DRAG;
-            this.velocity.y *= DRAG;
+            // Apply drag, scaled so the result doesn't depend on the frame rate
+            const drag = Math.pow(DRAG, delta * 60);
+            this.velocity.x *= drag;
+            this.velocity.y *= drag;
+            // Only x is snapped to zero. Above ~200 fps, the gravity added in one frame is
+            // below MIN_VELOCITY, so snapping y would keep the character from ever falling.
             if (Math.abs(this.velocity.x) < MIN_VELOCITY) {
                 this.velocity.x = 0;
-            }
-            if (Math.abs(this.velocity.y) < MIN_VELOCITY) {
-                this.velocity.y = 0;
             }
             
             // Clamp velocities
@@ -489,7 +500,7 @@ export class Character {
         this.shader.setUniform4x4f(webgl.Shader.MVP_MATRIX, this.mvp.values);
 
         this.batcher.begin(this.shader);
-        this.skeletonRenderer.premultipliedAlpha = false;
+        this.skeletonRenderer.premultipliedAlpha = true;
         this.skeletonRenderer.draw(this.batcher, this.character.skeleton);
         this.batcher.end();
 
@@ -552,8 +563,6 @@ export class Character {
         this.gl.enableVertexAttribArray(aPosition);
         this.gl.vertexAttribPointer(aPosition, 2, this.gl.FLOAT, false, 0, 0);
         this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
-
-        this.saveToSessionStorage();
 
         // Store the animation frame ID
         this.animationFrameId = requestAnimationFrame(this.render.bind(this));
@@ -670,14 +679,7 @@ export class Character {
         }
 
         // Remove event listeners
-        this.canvas.removeEventListener('click', this.handleCanvasClick.bind(this));
-        this.canvas.removeEventListener('mousedown', this.handleDragStart.bind(this));
-        document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.removeEventListener('mousemove', this.handleDrag.bind(this));
-        document.removeEventListener('mouseup', this.handleDragEnd.bind(this));
-        this.canvas.removeEventListener('touchstart', this.handleDragStart.bind(this));
-        document.removeEventListener('touchmove', this.handleDrag.bind(this));
-        document.removeEventListener('touchend', this.handleDragEnd.bind(this));
+        this.listeners.abort();
 
         // Clean up Spine resources
         if (this.character) {
