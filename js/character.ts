@@ -87,6 +87,9 @@ export class Character {
 
     private animationFrameId: number | null = null;
 
+    // Removes every listener added in setupEventListeners() at once
+    private listeners = new AbortController();
+
     // Vehicle can't sit & sleep
     private isVehicle: boolean = false;
 
@@ -144,25 +147,27 @@ export class Character {
     }
 
     private setupEventListeners(onContextMenu: (e: MouseEvent | TouchEvent) => void): void {
+        const { signal } = this.listeners;
+
         // Track mouse position to decide mouse over
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        document.addEventListener('mousemove', this.handleMouseMove.bind(this), { signal });
 
         if (this.allowInteract) {
             // React to click events
-            this.canvas.addEventListener('click', this.handleCanvasClick.bind(this));
+            this.canvas.addEventListener('click', this.handleCanvasClick.bind(this), { signal });
 
             // Context menu
-            this.canvas.addEventListener('contextmenu', onContextMenu);
+            this.canvas.addEventListener('contextmenu', onContextMenu, { signal });
 
             // Mouse events
-            this.canvas.addEventListener('mousedown', this.handleDragStart.bind(this));
-            document.addEventListener('mousemove', this.handleDrag.bind(this));
-            document.addEventListener('mouseup', this.handleDragEnd.bind(this));
-            
+            this.canvas.addEventListener('mousedown', this.handleDragStart.bind(this), { signal });
+            document.addEventListener('mousemove', this.handleDrag.bind(this), { signal });
+            document.addEventListener('mouseup', this.handleDragEnd.bind(this), { signal });
+
             // Touch events
-            this.canvas.addEventListener('touchstart', this.handleDragStart.bind(this));
-            document.addEventListener('touchmove', this.handleDrag.bind(this));
-            document.addEventListener('touchend', this.handleDragEnd.bind(this));
+            this.canvas.addEventListener('touchstart', this.handleDragStart.bind(this), { signal });
+            document.addEventListener('touchmove', this.handleDrag.bind(this), { signal });
+            document.addEventListener('touchend', this.handleDragEnd.bind(this), { signal });
         }
     }
 
@@ -670,14 +675,7 @@ export class Character {
         }
 
         // Remove event listeners
-        this.canvas.removeEventListener('click', this.handleCanvasClick.bind(this));
-        this.canvas.removeEventListener('mousedown', this.handleDragStart.bind(this));
-        document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.removeEventListener('mousemove', this.handleDrag.bind(this));
-        document.removeEventListener('mouseup', this.handleDragEnd.bind(this));
-        this.canvas.removeEventListener('touchstart', this.handleDragStart.bind(this));
-        document.removeEventListener('touchmove', this.handleDrag.bind(this));
-        document.removeEventListener('touchend', this.handleDragEnd.bind(this));
+        this.listeners.abort();
 
         // Clean up Spine resources
         if (this.character) {
