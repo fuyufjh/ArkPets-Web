@@ -7,7 +7,7 @@ import { CharacterModel } from './types.js';
 const MOVING_SPEED = 30; // pixels per second
 
 const GRAVITY = 1000; // pixels per second squared
-const DRAG = 0.98; // air resistance
+const DRAG = 0.98; // air resistance, as velocity kept per 1/60 s
 const MAX_VELOCITY = 1000; // maximum velocity in pixels per second
 const MIN_VELOCITY = 5; // threshold for stopping
 const BOUNCE_DAMPING = 0.7; // energy loss on bounce
@@ -409,14 +409,14 @@ export class Character {
             // Apply gravity
             this.velocity.y += GRAVITY * delta;
             
-            // Apply drag
-            this.velocity.x *= DRAG;
-            this.velocity.y *= DRAG;
+            // Apply drag, scaled so the result doesn't depend on the frame rate
+            const drag = Math.pow(DRAG, delta * 60);
+            this.velocity.x *= drag;
+            this.velocity.y *= drag;
+            // Only x is snapped to zero. Above ~200 fps, the gravity added in one frame is
+            // below MIN_VELOCITY, so snapping y would keep the character from ever falling.
             if (Math.abs(this.velocity.x) < MIN_VELOCITY) {
                 this.velocity.x = 0;
-            }
-            if (Math.abs(this.velocity.y) < MIN_VELOCITY) {
-                this.velocity.y = 0;
             }
             
             // Clamp velocities
