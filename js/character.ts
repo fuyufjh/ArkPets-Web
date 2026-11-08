@@ -333,9 +333,8 @@ export class Character {
         const skeletonData = skeletonBinary.readSkeletonData(this.assetManager.get(resource.skeleton));
         const skeleton = new spine.Skeleton(skeletonData);
 
-        if (!skeletonData.findAnimation("Sit") || !skeletonData.findAnimation("Sleep")) {
-            this.isVehicle = true;
-        }
+        // Recomputed for every model, so switching back from a vehicle restores Sit and Sleep
+        this.isVehicle = !skeletonData.findAnimation("Sit") || !skeletonData.findAnimation("Sleep");
 
         const animationStateData = new spine.AnimationStateData(skeleton.data);
 
