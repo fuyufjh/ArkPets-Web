@@ -55,8 +55,8 @@ vec4 getOutlined() {
         
         sum *= c_outlineOverstate;
         if (sum.a > c_alphaLv0) {
-            texColor.rgb = u_outlineColor.rgb;
             texColor.a = min(1.0, sum.a) * u_outlineColor.a;
+            texColor.rgb = u_outlineColor.rgb * texColor.a; // premultiplied
         }
     }
     return texColor;
@@ -104,6 +104,8 @@ vec4 getSeamed() {
         texColor.rgb = sampleColor.rgb / float(sampleSize) * c_seamCoef + texColor.rgb * (1.0 - c_seamCoef);
         texColor.a = sampleColor.a / float(sampleSize);
     } else {
+        // Premultiplied: raising alpha must raise the color with it, or the pixel darkens
+        texColor.rgb *= c_alphaLv2 / texColor.a;
         texColor.a = c_alphaLv2;
     }
     return texColor;
@@ -126,5 +128,5 @@ void main() {
 
     // Ultimate composing
     gl_FragColor = texColor;
-    gl_FragColor.a *= u_alpha;
+    gl_FragColor *= u_alpha; // premultiplied
 }

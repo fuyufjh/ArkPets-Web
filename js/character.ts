@@ -122,7 +122,8 @@ export class Character {
     private initializeWebGL(): void {
         this.gl = this.canvas.getContext("webgl", {
             alpha: true,
-            premultipliedAlpha: false
+            // Ark-Models textures use premultiplied alpha, so the framebuffer holds premultiplied colors too
+            premultipliedAlpha: true
         }) as WebGLRenderingContext;
 
         if (!this.gl) {
@@ -489,7 +490,7 @@ export class Character {
         this.shader.setUniform4x4f(webgl.Shader.MVP_MATRIX, this.mvp.values);
 
         this.batcher.begin(this.shader);
-        this.skeletonRenderer.premultipliedAlpha = false;
+        this.skeletonRenderer.premultipliedAlpha = true;
         this.skeletonRenderer.draw(this.batcher, this.character.skeleton);
         this.batcher.end();
 
