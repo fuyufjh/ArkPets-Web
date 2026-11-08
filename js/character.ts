@@ -239,6 +239,9 @@ export class Character {
         const basePath = model.resourcePath ?? "";
         Promise.all(resources.map(async resource => {
             const response = await fetch(basePath + encodeUriPath(resource));
+            if (!response.ok) {
+                throw new Error(`${resource}: HTTP ${response.status}`);
+            }
             const blob = await response.blob();
             const reader = new FileReader();
             return new Promise<string>(resolve => {
