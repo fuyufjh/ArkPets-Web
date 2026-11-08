@@ -152,6 +152,9 @@ export class Character {
         // Track mouse position to decide mouse over
         document.addEventListener('mousemove', this.handleMouseMove.bind(this), { signal });
 
+        // Keep the state for the next page in this tab
+        window.addEventListener('pagehide', this.saveToSessionStorage.bind(this), { signal });
+
         if (this.allowInteract) {
             // React to click events
             this.canvas.addEventListener('click', this.handleCanvasClick.bind(this), { signal });
@@ -560,8 +563,6 @@ export class Character {
         this.gl.enableVertexAttribArray(aPosition);
         this.gl.vertexAttribPointer(aPosition, 2, this.gl.FLOAT, false, 0, 0);
         this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
-
-        this.saveToSessionStorage();
 
         // Store the animation frame ID
         this.animationFrameId = requestAnimationFrame(this.render.bind(this));
