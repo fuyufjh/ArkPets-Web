@@ -101,8 +101,11 @@ vec4 getSeamed() {
         }
     }
     if (sampleSize > 0) {
-        texColor.rgb = sampleColor.rgb / float(sampleSize) * c_seamCoef + texColor.rgb * (1.0 - c_seamCoef);
-        texColor.a = sampleColor.a / float(sampleSize);
+        vec4 averageColor = sampleColor / float(sampleSize);
+        // Match alpha before mixing premultiplied colors to preserve brightness.
+        texColor.rgb *= averageColor.a / texColor.a;
+        texColor.rgb = averageColor.rgb * c_seamCoef + texColor.rgb * (1.0 - c_seamCoef);
+        texColor.a = averageColor.a;
     } else {
         // Premultiplied: raising alpha must raise the color with it, or the pixel darkens
         texColor.rgb *= c_alphaLv2 / texColor.a;
