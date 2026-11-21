@@ -72,6 +72,7 @@ export class Character {
     private velocity = { x: 0, y: 0 };
     
     private model: CharacterModel;
+    private loadedModel: CharacterModel | null = null;
     private character!: SpineCharacter;
     
     private currentAction: Action = {
@@ -292,10 +293,13 @@ export class Character {
     }
 
     private saveToSessionStorage(): void {
+        // A pending or failed model must not replace a usable saved selection.
+        if (!this.loadedModel) return;
+
         sessionStorage.setItem('arkpets-character-' + this.canvas.id, JSON.stringify({
             position: this.position,
             currentAction: this.currentAction,
-            characterResource: this.model
+            characterResource: this.loadedModel
         }));
     }
 
@@ -320,6 +324,7 @@ export class Character {
             }
             this.character.state.setAnimation(0, this.currentAction.animation, true);
             this.character.state.update(this.currentAction.timestamp);
+            this.loadedModel = this.model;
 
             this.lastFrameTime = Date.now() / 1000;
 
