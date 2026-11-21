@@ -165,12 +165,13 @@ export function showContextMenu(e: MouseEvent | TouchEvent, c: Character, callba
     menu.appendChild(hideMenu);
     menu.appendChild(aboutMenu);
     
-    // Position the main menu at click/touch position
-    const pageX = 'touches' in e ? e.touches[0].pageX : (e as MouseEvent).pageX;
-    const pageY = 'touches' in e ? e.touches[0].pageY : (e as MouseEvent).pageY;
-    
+    // Position the main menu at click/touch position. The menu is position: fixed,
+    // so it needs viewport (client) coordinates, not page coordinates.
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+
     document.body.appendChild(menu);
-    positionElement(menu, pageX, pageY);
+    positionElement(menu, clientX, clientY);
 
     // Remove menu when clicking outside
     const handleClickOutside = (e: MouseEvent) => {
